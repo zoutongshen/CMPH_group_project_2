@@ -10,7 +10,7 @@ with theta_i in [-pi, pi]. The Hamiltonian is
 with the sum running over nearest-neighbour pairs on the lattice. We set
 J = k_B = 1 throughout.
 
-Author: CMPH 2026 Project 2 — Group 12
+Author: CMPH 2026 Project 2
 Date: April 2026
 """
 

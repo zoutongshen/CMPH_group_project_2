@@ -8,7 +8,7 @@ Loads .npz files saved by xy_simulation.py and produces:
   - final spin configuration as an HSV colour grid or as arrows
   - a grid of final configurations across a temperature scan
 
-Author: CMPH 2026 Project 2 — Group 12
+Author: CMPH 2026 Project 2
 Date: April 2026
 """
 
