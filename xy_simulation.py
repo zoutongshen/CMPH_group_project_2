@@ -452,6 +452,10 @@ def main() -> None:
         saves the full per-sweep |M|/N^2 and E/N^2 time series and the final
         lattice at each temperature. The derived quantities (tau, chi_M, C
         and their errors) are computed from this file by analysis.py.
+
+    All three modes accept --j2-ratio for the NNN diagonal coupling; non-zero
+    values append a _j2_<value> suffix to the output filename so that J2 = 0
+    and J2 > 0 runs do not collide.
     """
     parser = argparse.ArgumentParser(description="2D XY model Monte Carlo simulation")
     parser.add_argument("--size", type=int, default=20,

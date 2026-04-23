@@ -11,6 +11,12 @@ Loads .npz files saved by xy_simulation.py and produces:
   - final spin configuration as an HSV colour grid or as arrows, optionally
     with vortices / anti-vortices circled
   - a grid of final configurations across a temperature scan
+  - side-by-side comparison of several scans (compare-scans mode), for
+    instance J2 = 0 vs J2 > 0 from the extension branch
+
+Plots that read a scan file pick up j2_ratio from the .npz and show it in
+the title when it is non-zero; pre-extension scan files without the field
+are treated as j2_ratio = 0.
 
 Author: CMPH 2026 Project 2
 Date: April 2026
