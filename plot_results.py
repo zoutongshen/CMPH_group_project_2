@@ -37,6 +37,20 @@ def wrapped_angles(angles: np.ndarray) -> np.ndarray:
     return np.mod(angles + np.pi, 2 * np.pi) - np.pi
 
 
+def _j2_ratio_of(data: np.lib.npyio.NpzFile) -> float:
+    """Read j2_ratio from an .npz file; default 0.0 for pre-extension data."""
+    if 'j2_ratio' in data.files:
+        return float(data['j2_ratio'])
+    return 0.0
+
+
+def _j2_label(j2_ratio: float) -> str:
+    """Short figure-title fragment for j2_ratio; empty when zero."""
+    if j2_ratio == 0.0:
+        return ''
+    return f'  [J2/J1 = {j2_ratio:g}]'
+
+
 def plot_time_series(filename: str, figure_path: str) -> None:
     """
     Plot |M|/spin and energy/spin as a function of sweep index.
@@ -112,6 +126,7 @@ def _scan_statistics_from_file(filename: str) -> tuple:
     n_sites = int(data['final_angles'].shape[1] * data['final_angles'].shape[2])
     stats = analysis.scan_statistics(
         magnetization_series, energy_series, temperatures, n_sites)
+    stats['j2_ratio'] = _j2_ratio_of(data)
     return stats, temperatures, n_sites
 
 
@@ -158,6 +173,9 @@ def plot_scan_observables(filename: str, figure_path: str) -> None:
     axes[1, 1].set_ylabel('C')
     axes[1, 1].grid(True, alpha=0.3)
 
+    suffix = _j2_label(stats['j2_ratio'])
+    if suffix:
+        fig.suptitle(suffix.strip())
     save_figure(fig, figure_path)
 
 
@@ -182,6 +200,9 @@ def plot_correlation_time(filename: str, figure_path: str,
                label=f'$T_c = {critical_temperature}$')
     ax.set_xlabel('Temperature T')
     ax.set_ylabel(r'Correlation time $\tau$ (sweeps)')
+    suffix = _j2_label(stats['j2_ratio'])
+    if suffix:
+        ax.set_title(suffix.strip())
     ax.grid(True, alpha=0.3)
     ax.legend()
     save_figure(fig, figure_path)
@@ -215,6 +236,9 @@ def plot_vortex_counts(filename: str, figure_path: str) -> None:
             label='anti-vortices (-1)')
     ax.set_xlabel('Temperature T')
     ax.set_ylabel('Count per final configuration')
+    suffix = _j2_label(_j2_ratio_of(data))
+    if suffix:
+        ax.set_title(suffix.strip())
     ax.grid(True, alpha=0.3)
     ax.legend()
     save_figure(fig, figure_path)
@@ -295,6 +319,59 @@ def plot_spin_vectors(angles: np.ndarray, figure_path: str,
     save_figure(fig, figure_path)
 
 
+def plot_compare_scans(filenames: list, figure_path: str) -> None:
+    """
+    Overlay the six scan summary quantities from several scan files.
+
+    For each input file, computes tau, <|m|>, <e>, chi_M, C via
+    analysis.scan_statistics and counts vortices in the final configurations,
+    then plots them all on one 2x3 figure labelled by j2_ratio. This makes
+    the J1 vs J1+J2 comparison a single artifact.
+
+    Args:
+        filenames: List of .npz paths saved by xy_simulation.py --scan
+        figure_path: Output PNG path
+    """
+    fig, axes = plt.subplots(2, 3, figsize=(15, 9))
+
+    for filename in filenames:
+        stats, temperatures, _ = _scan_statistics_from_file(filename)
+        data = np.load(filename)
+        final_angles = data['final_angles']
+        n_vortices = np.array([vortices.count_vortices(cfg)[0]
+                               for cfg in final_angles])
+        label = (f'J2/J1 = {stats["j2_ratio"]:g}'
+                 if stats['j2_ratio'] != 0.0 else 'J2 = 0')
+
+        axes[0, 0].errorbar(temperatures, stats['magnetization_mean'],
+                            yerr=stats['magnetization_error'],
+                            fmt='o-', capsize=3, label=label)
+        axes[0, 1].errorbar(temperatures, stats['energy_mean'],
+                            yerr=stats['energy_error'],
+                            fmt='s-', capsize=3, label=label)
+        axes[0, 2].plot(temperatures, stats['tau'], 'D-', label=label)
+        axes[1, 0].errorbar(temperatures, stats['susceptibility'],
+                            yerr=stats['susceptibility_error'],
+                            fmt='o-', capsize=3, label=label)
+        axes[1, 1].errorbar(temperatures, stats['specific_heat'],
+                            yerr=stats['specific_heat_error'],
+                            fmt='s-', capsize=3, label=label)
+        axes[1, 2].plot(temperatures, n_vortices, 'D-', label=label)
+
+    for ax, ylabel in zip(
+        axes.ravel(),
+        [r'$\langle |m| \rangle$', r'$\langle e \rangle$',
+         r'$\tau$ (sweeps)', r'$\chi_M$', 'C',
+         'vortices per final configuration'],
+    ):
+        ax.set_xlabel('Temperature T')
+        ax.set_ylabel(ylabel)
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+    save_figure(fig, figure_path)
+
+
 def plot_scan_configurations(filename: str, figure_path: str) -> None:
     """
     Plot final spin configurations from a temperature scan as a grid of panels.
@@ -326,6 +403,9 @@ def plot_scan_configurations(filename: str, figure_path: str) -> None:
     for panel_idx in range(n_panels, n_rows * n_cols):
         axes[panel_idx // n_cols, panel_idx % n_cols].axis('off')
 
+    suffix = _j2_label(_j2_ratio_of(data))
+    if suffix:
+        fig.suptitle(suffix.strip())
     save_figure(fig, figure_path)
 
 
@@ -338,13 +418,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Plot XY model MC results")
     parser.add_argument("--mode",
                         choices=["time-series", "two-starts", "scan",
-                                 "tau", "vortex-count",
+                                 "tau", "vortex-count", "compare-scans",
                                  "scan-configurations", "configuration",
                                  "vectors"],
                         required=True,
                         help="Which type of plot to produce")
-    parser.add_argument("--input", type=str, required=True,
-                        help="Input .npz file produced by xy_simulation.py")
+    parser.add_argument("--input", type=str,
+                        help="Input .npz file (single-file modes)")
+    parser.add_argument("--inputs", type=str, nargs='+',
+                        help="Input .npz files for compare-scans")
     parser.add_argument("--output", type=str, required=True,
                         help="Output PNG path")
     parser.add_argument("--title", type=str, default="",
@@ -353,6 +435,15 @@ def main() -> None:
                         help="Mark vortices / anti-vortices on configuration "
                              "and vectors plots")
     args = parser.parse_args()
+
+    if args.mode == "compare-scans":
+        if not args.inputs:
+            parser.error("--inputs is required for --mode compare-scans")
+        plot_compare_scans(args.inputs, args.output)
+        return
+
+    if not args.input:
+        parser.error("--input is required for this mode")
 
     if args.mode == "time-series":
         plot_time_series(args.input, args.output)

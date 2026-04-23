@@ -5,10 +5,13 @@ Implements the Metropolis algorithm on an N x N square lattice with periodic
 boundary conditions. Each site carries a spin s_i = (cos theta_i, sin theta_i)
 with theta_i in [-pi, pi]. The Hamiltonian is
 
-    H = -J sum_<i,j> s_i . s_j = -J sum_<i,j> cos(theta_i - theta_j)
+    H = -J1 sum_<i,j> cos(theta_i - theta_j)
+        -J2 sum_<<i,j>> cos(theta_i - theta_j)
 
-with the sum running over nearest-neighbour pairs on the lattice. We set
-J = k_B = 1 throughout.
+where the first sum runs over nearest-neighbour pairs and the second over
+next-nearest-neighbour diagonals (the extension branch). j2_ratio = J2 / J1
+is an input parameter; at j2_ratio = 0 the model reduces to the standard
+nearest-neighbour XY model. We set J1 = k_B = 1 throughout.
 
 Author: CMPH 2026 Project 2
 Date: April 2026
@@ -20,19 +23,27 @@ from typing import Optional, Tuple
 from tqdm import tqdm
 
 
-def local_energy(angles: np.ndarray, row: int, col: int) -> float:
+def local_energy(angles: np.ndarray, row: int, col: int,
+                 *, j2_ratio: float = 0.0) -> float:
     """
-    Interaction energy of a single site with its four neighbours.
+    Interaction energy of a single site with its neighbours.
 
-    Uses periodic boundary conditions via the modulo operator.
+    Uses periodic boundary conditions via the modulo operator. The four
+    nearest neighbours always contribute; when j2_ratio is non-zero the
+    four next-nearest diagonal neighbours contribute with coupling J2 / J1
+    equal to j2_ratio.
 
     Args:
         angles: Array of shape (size, size) with spin angles
         row: Row index of the spin
         col: Column index of the spin
+        j2_ratio: Ratio of the NNN diagonal coupling to J1. Setting
+                  j2_ratio = 0 recovers the pure nearest-neighbour model.
 
     Returns:
-        -sum_{nn} cos(theta_i - theta_nn) for the specified site.
+        Single-site contribution to H, i.e.
+        - sum_{nn}  cos(theta_i - theta_nn)
+        - j2_ratio * sum_{nnn_diag} cos(theta_i - theta_nnn).
     """
     size = angles.shape[0]
     theta = angles[row, col]
@@ -40,22 +51,35 @@ def local_energy(angles: np.ndarray, row: int, col: int) -> float:
     left = angles[row, (col - 1) % size]
     up = angles[(row - 1) % size, col]
     down = angles[(row + 1) % size, col]
-    return -(np.cos(theta - right) + np.cos(theta - left)
-             + np.cos(theta - up) + np.cos(theta - down))
+    energy = -(np.cos(theta - right) + np.cos(theta - left)
+               + np.cos(theta - up) + np.cos(theta - down))
+    if j2_ratio != 0.0:
+        up_right = angles[(row - 1) % size, (col + 1) % size]
+        up_left = angles[(row - 1) % size, (col - 1) % size]
+        down_right = angles[(row + 1) % size, (col + 1) % size]
+        down_left = angles[(row + 1) % size, (col - 1) % size]
+        energy -= j2_ratio * (np.cos(theta - up_right)
+                              + np.cos(theta - up_left)
+                              + np.cos(theta - down_right)
+                              + np.cos(theta - down_left))
+    return energy
 
 
-def total_energy(angles: np.ndarray) -> float:
+def total_energy(angles: np.ndarray, *, j2_ratio: float = 0.0) -> float:
     """
     Total energy of the lattice under the XY Hamiltonian.
 
-    Sums over nearest-neighbour pairs without double counting by looking only
-    at the right and down neighbours of each site.
+    Nearest-neighbour pairs are counted by visiting only each site's right
+    and down neighbours. NNN diagonal pairs are counted by visiting the
+    down-right and down-left neighbours; each diagonal bond is reached from
+    exactly one endpoint that way.
 
     Args:
         angles: Array of shape (size, size) with spin angles
+        j2_ratio: Ratio of the NNN diagonal coupling to J1
 
     Returns:
-        Total energy, i.e. -sum_<i,j> cos(theta_i - theta_j).
+        Total energy of the configuration.
     """
     size = angles.shape[0]
     energy = 0.0
@@ -65,6 +89,11 @@ def total_energy(angles: np.ndarray) -> float:
             right = angles[row, (col + 1) % size]
             down = angles[(row + 1) % size, col]
             energy -= np.cos(theta - right) + np.cos(theta - down)
+            if j2_ratio != 0.0:
+                down_right = angles[(row + 1) % size, (col + 1) % size]
+                down_left = angles[(row + 1) % size, (col - 1) % size]
+                energy -= j2_ratio * (np.cos(theta - down_right)
+                                      + np.cos(theta - down_left))
     return energy
 
 
@@ -85,7 +114,8 @@ def total_magnetization(angles: np.ndarray) -> Tuple[float, float]:
 
 
 def metropolis_sweep(angles: np.ndarray, rng: np.random.Generator,
-                     *, beta: float, delta: float) -> Tuple[float, float, float, int]:
+                     *, beta: float, delta: float,
+                     j2_ratio: float = 0.0) -> Tuple[float, float, float, int]:
     """
     Perform one Monte Carlo sweep over the lattice.
 
@@ -102,6 +132,7 @@ def metropolis_sweep(angles: np.ndarray, rng: np.random.Generator,
         rng: Random generator used to draw the trial moves
         beta: Inverse temperature 1 / (k_B T)
         delta: Maximum absolute angle change per trial move
+        j2_ratio: Ratio of the NNN diagonal coupling to J1
 
     Returns:
         Tuple (energy_change, mag_x_change, mag_y_change, n_accepted) summed
@@ -124,9 +155,9 @@ def metropolis_sweep(angles: np.ndarray, rng: np.random.Generator,
         theta_old = angles[row, col]
         theta_new = theta_old + proposals[step]
 
-        e_old = local_energy(angles, row, col)
+        e_old = local_energy(angles, row, col, j2_ratio=j2_ratio)
         angles[row, col] = theta_new
-        e_new = local_energy(angles, row, col)
+        e_new = local_energy(angles, row, col, j2_ratio=j2_ratio)
         delta_e = e_new - e_old
 
         if delta_e <= 0.0 or accept_draws[step] < np.exp(-beta * delta_e):
@@ -171,16 +202,19 @@ class XYModel:
 
     def __init__(self, size: int, temperature: float, *,
                  ordered_start: bool = False, delta: float = np.pi,
+                 j2_ratio: float = 0.0,
                  seed: Optional[int] = None):
         """
         Initialise the simulation.
 
         Args:
             size: Lattice side length N
-            temperature: Temperature T in units where J = k_B = 1
+            temperature: Temperature T in units where J1 = k_B = 1
             ordered_start: If True, start from all-aligned spins (T=0 limit);
                            otherwise start from uniformly random spins.
             delta: Maximum absolute angle change per Metropolis trial move
+            j2_ratio: Ratio of the NNN diagonal coupling to J1 (default 0,
+                      i.e. pure nearest-neighbour XY model)
             seed: Optional random seed for the internal generator
         """
         self.size = size
@@ -188,10 +222,11 @@ class XYModel:
         self.temperature = temperature
         self.beta = 1.0 / temperature
         self.delta = delta
+        self.j2_ratio = j2_ratio
         self.rng = np.random.default_rng(seed)
 
         self.angles = initial_lattice(size, self.rng, ordered=ordered_start)
-        self.energy = total_energy(self.angles)
+        self.energy = total_energy(self.angles, j2_ratio=j2_ratio)
         mag_x, mag_y = total_magnetization(self.angles)
         self.mag_x = mag_x
         self.mag_y = mag_y
@@ -207,7 +242,8 @@ class XYModel:
             Number of accepted moves in this sweep.
         """
         delta_e, delta_mx, delta_my, n_accepted = metropolis_sweep(
-            self.angles, self.rng, beta=self.beta, delta=self.delta)
+            self.angles, self.rng, beta=self.beta, delta=self.delta,
+            j2_ratio=self.j2_ratio)
 
         self.energy += delta_e
         self.mag_x += delta_mx
@@ -272,6 +308,7 @@ class XYModel:
 def temperature_scan(size: int, temperatures: np.ndarray, *,
                      n_equil_sweeps: int, n_prod_sweeps: int,
                      record_interval: int = 1, seed: Optional[int] = None,
+                     j2_ratio: float = 0.0,
                      show_progress: bool = True) -> dict:
     """
     Run independent simulations at a list of temperatures.
@@ -305,6 +342,7 @@ def temperature_scan(size: int, temperatures: np.ndarray, *,
 
     for i, temperature in enumerate(temperatures):
         model = XYModel(size, temperature, ordered_start=True,
+                        j2_ratio=j2_ratio,
                         seed=(seed + i) if seed is not None else None)
         model.equilibrate(n_equil_sweeps, show_progress=show_progress)
         run_sweeps, energies, magnetizations = model.simulate(
@@ -322,25 +360,37 @@ def temperature_scan(size: int, temperatures: np.ndarray, *,
         'magnetization_series': magnetization_series,
         'energy_series': energy_series,
         'final_angles': final_angles,
+        'j2_ratio': np.array(j2_ratio),
     }
+
+
+def _j2_suffix(j2_ratio: float) -> str:
+    """File-name suffix that encodes j2_ratio; empty when j2_ratio = 0."""
+    if j2_ratio == 0.0:
+        return ''
+    return f'_j2_{j2_ratio:.2f}'
 
 
 def run_single(args: argparse.Namespace) -> None:
     """Run one simulation at a single temperature and save the trajectory."""
-    print(f"Running N={args.size} at T={args.temperature}")
+    print(f"Running N={args.size} at T={args.temperature}, "
+          f"j2_ratio={args.j2_ratio}")
     model = XYModel(args.size, args.temperature,
-                    ordered_start=False, delta=args.delta, seed=args.seed)
+                    ordered_start=False, delta=args.delta,
+                    j2_ratio=args.j2_ratio, seed=args.seed)
     model.equilibrate(args.n_equil_sweeps, show_progress=True)
     sweeps, energies, magnetizations = model.simulate(
         args.n_prod_sweeps, record_interval=args.record_interval,
         show_progress=True)
 
-    filename = f'data/run_N{args.size}_T{args.temperature:.2f}.npz'
+    filename = (f'data/run_N{args.size}_T{args.temperature:.2f}'
+                f'{_j2_suffix(args.j2_ratio)}.npz')
     np.savez(filename,
              sweeps=sweeps,
              energies=energies,
              magnetizations=magnetizations,
-             final_angles=model.angles)
+             final_angles=model.angles,
+             j2_ratio=np.array(args.j2_ratio))
     print(f"Saved {filename}")
     print(f"Final energy/spin = {model.energy_per_spin():.4f}, "
           f"|M|/spin = {model.magnetization_per_spin():.4f}")
@@ -348,11 +398,13 @@ def run_single(args: argparse.Namespace) -> None:
 
 def run_two_starts(args: argparse.Namespace) -> None:
     """Run an ordered-start and a random-start simulation at the same T."""
-    print(f"Running two starts at T={args.temperature}, N={args.size}")
+    print(f"Running two starts at T={args.temperature}, N={args.size}, "
+          f"j2_ratio={args.j2_ratio}")
     results = {}
     for label, ordered in [('ordered', True), ('random', False)]:
         model = XYModel(args.size, args.temperature,
                         ordered_start=ordered, delta=args.delta,
+                        j2_ratio=args.j2_ratio,
                         seed=args.seed + (0 if ordered else 1))
         sweeps, energies, magnetizations = model.simulate(
             args.n_equil_sweeps + args.n_prod_sweeps,
@@ -362,8 +414,10 @@ def run_two_starts(args: argparse.Namespace) -> None:
         results[f'energies_{label}'] = energies
         results[f'magnetizations_{label}'] = magnetizations
         results[f'final_angles_{label}'] = model.angles.copy()
+    results['j2_ratio'] = np.array(args.j2_ratio)
 
-    filename = f'data/two_starts_N{args.size}_T{args.temperature:.2f}.npz'
+    filename = (f'data/two_starts_N{args.size}_T{args.temperature:.2f}'
+                f'{_j2_suffix(args.j2_ratio)}.npz')
     np.savez(filename, **results)
     print(f"Saved {filename}")
 
@@ -371,14 +425,16 @@ def run_two_starts(args: argparse.Namespace) -> None:
 def run_scan(args: argparse.Namespace) -> None:
     """Run an equilibrated simulation at every temperature in the requested range."""
     temperatures = np.arange(args.t_min, args.t_max + 1e-9, args.t_step)
-    print(f"Running temperature scan, N={args.size}, {len(temperatures)} temperatures")
+    print(f"Running temperature scan, N={args.size}, "
+          f"{len(temperatures)} temperatures, j2_ratio={args.j2_ratio}")
     results = temperature_scan(
         args.size, temperatures,
         n_equil_sweeps=args.n_equil_sweeps,
         n_prod_sweeps=args.n_prod_sweeps,
         record_interval=args.record_interval,
+        j2_ratio=args.j2_ratio,
         seed=args.seed)
-    filename = f'data/scan_N{args.size}.npz'
+    filename = f'data/scan_N{args.size}{_j2_suffix(args.j2_ratio)}.npz'
     np.savez(filename, **results)
     print(f"Saved {filename}")
 
@@ -410,6 +466,9 @@ def main() -> None:
                         help="Record observables every this many sweeps (default: 1)")
     parser.add_argument("--delta", type=float, default=np.pi,
                         help="Metropolis angle step size (default: pi)")
+    parser.add_argument("--j2-ratio", type=float, default=0.0,
+                        help="Ratio of NNN diagonal coupling to J1 "
+                             "(default: 0.0, pure nearest-neighbour model)")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed (default: 42)")
     parser.add_argument("--two-starts", action="store_true",

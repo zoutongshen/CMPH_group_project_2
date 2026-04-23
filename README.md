@@ -4,14 +4,20 @@
 
 Metropolis Monte Carlo simulation of the two-dimensional XY model on an
 N × N square lattice with periodic boundary conditions. Each site carries a
-planar spin `s_i = (cos theta_i, sin theta_i)`. The Hamiltonian is
+planar spin `s_i = (cos theta_i, sin theta_i)`. The Hamiltonian, with
+`J1 = k_B = 1`, is
 
 ```
-H = -J sum_<i,j> s_i . s_j = -J sum_<i,j> cos(theta_i - theta_j)
+H = -J1 sum_<i,j>  cos(theta_i - theta_j)
+    -J2 sum_<<i,j>> cos(theta_i - theta_j)
 ```
 
-with `J = k_B = 1`. The code tracks the total energy and the magnetization
-vector incrementally, so each accepted spin move costs O(1) work.
+where the second sum runs over the four next-nearest-neighbour diagonals
+(the `extension` branch). The CLI flag `--j2-ratio` sets `J2 / J1`; at
+`--j2-ratio 0` (the default) the model reduces to the nearest-neighbour
+2D XY model from `main`. The code tracks the total energy and the
+magnetization vector incrementally, so each accepted spin move costs
+O(1) work.
 
 ## Files
 
@@ -142,11 +148,60 @@ python plot_results.py --mode vectors \
 | `--n-prod-sweeps` | 5000 | Production sweeps with recording |
 | `--record-interval` | 1 | Record observables every this many sweeps |
 | `--delta` | π | Maximum angle change per trial move |
+| `--j2-ratio` | 0.0 | Ratio of NNN diagonal coupling to J1 (see Extension below) |
 | `--seed` | 42 | Random seed |
 | `--t-min` / `--t-max` / `--t-step` | 0.5 / 2.5 / 0.2 | Temperature scan range |
 
 One Monte Carlo sweep is defined as `N^2` trial moves, so on average every
 spin gets one attempted update per sweep — independent of lattice size.
+
+## Extension: second-neighbour coupling
+
+Adding a diagonal next-nearest-neighbour coupling `J2` (with `J2 / J1`
+controlled by `--j2-ratio`) introduces 4 extra bonds per site along
+(±1, ±1). More ferromagnetic coupling means a more strongly ordered
+phase, so the transition temperature shifts upward and vortex cores cost
+more energy.
+
+### Running the extension
+
+```bash
+# J2 = 0.5 * J1 scan, same range and size as the main-branch run
+python xy_simulation.py --scan --size 20 \
+    --t-min 0.5 --t-max 2.5 --t-step 0.2 \
+    --n-equil-sweeps 2000 --n-prod-sweeps 20000 \
+    --j2-ratio 0.5
+
+# writes data/scan_N20_j2_0.50.npz (the _j2_* suffix disambiguates from J2=0)
+```
+
+### Overlay comparison plot
+
+```bash
+python plot_results.py --mode compare-scans \
+    --inputs data/scan_N20.npz data/scan_N20_j2_0.50.npz \
+    --output figures/compare_scans_N20.png
+```
+
+Produces a 2x3 panel of `<|m|>`, `<e>`, τ, χ_M, C, and the vortex count
+with both scans overlaid. Labels come from each file's stored
+`j2_ratio`.
+
+### Expected effects
+
+- χ_M and C peaks move to higher T (rough shift with J2 = 0.5: from
+  T ≈ 1.1 to T ≈ 1.9 on N = 20).
+- τ peak tracks the new T_c — critical slowing down at the shifted
+  transition.
+- At a fixed T, configurations are smoother and carry fewer vortices.
+- Energy per spin is more negative at every T because more bonds
+  contribute.
+
+### Regression guarantee
+
+At `--j2-ratio 0` the code path through the NNN terms is gated by
+`if j2_ratio != 0.0`, so the trajectory is bit-identical to the
+nearest-neighbour simulation on `main` for the same seed.
 
 ## Notes on the algorithm
 
