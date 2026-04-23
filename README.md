@@ -17,8 +17,13 @@ vector incrementally, so each accepted spin move costs O(1) work.
 
 - `xy_simulation.py` — simulation code (`XYModel` class, `temperature_scan`
   helper, CLI)
+- `analysis.py` — post-processing routines: autocorrelation, correlation
+  time τ, correlated-mean error σ = √(2τ/t_max · var), susceptibility χ_M,
+  specific heat C, and the blocking-method error estimator
+- `vortices.py` — plaquette winding-number based vortex detection
 - `plot_results.py` — plotting utilities for time series, two-start
-  comparisons, temperature scans, and spin configurations
+  comparisons, temperature scans, correlation time, vortex counts, and
+  spin configurations
 - `data/` — directory for simulation output (`.npz` files)
 - `figures/` — directory for generated plots
 
@@ -56,13 +61,24 @@ temperature and writes both time series to a single `.npz` file.
 ### Temperature scan
 
 ```bash
-python xy_simulation.py --scan --size 20 \
-    --t-min 0.5 --t-max 2.5 --t-step 0.2
+python xy_simulation.py --scan --size 50 \
+    --t-min 0.5 --t-max 2.5 --t-step 0.2 \
+    --n-equil-sweeps 2000 --n-prod-sweeps 30000
 ```
 
-Runs an independent, equilibrated simulation at every temperature and saves
-the mean and standard deviation of `|M|/N^2` and `E/N^2`, along with the final
-lattice at each temperature.
+Runs an independent, equilibrated simulation at every temperature. For each
+temperature it saves the **full per-sweep time series** of `|M|/N^2` and
+`E/N^2`, plus the final lattice. The analysis pipeline then consumes that
+file:
+
+- correlation time τ(T) from the autocorrelation of `|M|/N^2`
+- `<|m|>`, `<e>` with the correlated standard error σ = √(2τ/t_max · var)
+- χ_M and C from the fluctuation formulas, with error bars from the
+  blocking method (block length ≈ 16τ)
+
+Long production runs are needed near T_c ≈ 0.881 because τ peaks there
+(critical slowing down), and blocking requires many blocks each much longer
+than τ.
 
 ### Plots
 
@@ -77,15 +93,25 @@ python plot_results.py --mode two-starts \
     --input data/two_starts_N20_T1.00.npz \
     --output figures/two_starts_N20_T1.00.png
 
-# mean observables across the temperature scan
+# 2x2 panel of <|m|>, <e>, chi_M, C with correlated errors
 python plot_results.py --mode scan \
-    --input data/scan_N20.npz \
-    --output figures/scan_N20.png
+    --input data/scan_N50.npz \
+    --output figures/scan_N50.png
+
+# correlation time tau(T); peaks near T_c
+python plot_results.py --mode tau \
+    --input data/scan_N50.npz \
+    --output figures/tau_N50.png
+
+# vortex / anti-vortex count of the final configuration vs T
+python plot_results.py --mode vortex-count \
+    --input data/scan_N50.npz \
+    --output figures/vortex_count_N50.png
 
 # final spin configurations at every T in the scan
 python plot_results.py --mode scan-configurations \
-    --input data/scan_N20.npz \
-    --output figures/scan_configurations_N20.png
+    --input data/scan_N50.npz \
+    --output figures/scan_configurations_N50.png
 
 # single configuration (from any run file that stores final_angles)
 python plot_results.py --mode configuration \
@@ -93,7 +119,13 @@ python plot_results.py --mode configuration \
     --output figures/configuration_N20_T1.00.png \
     --title "T = 1.0"
 
-# same configuration drawn as arrows instead of a colour grid
+# same configuration with vortices / anti-vortices circled
+python plot_results.py --mode configuration --overlay-vortices \
+    --input data/run_N20_T1.00.npz \
+    --output figures/configuration_vortices_N20_T1.00.png \
+    --title "T = 1.0"
+
+# arrows instead of a colour grid
 python plot_results.py --mode vectors \
     --input data/run_N20_T1.00.npz \
     --output figures/vectors_N20_T1.00.png \

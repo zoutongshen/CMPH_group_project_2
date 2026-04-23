@@ -277,9 +277,9 @@ def temperature_scan(size: int, temperatures: np.ndarray, *,
     Run independent simulations at a list of temperatures.
 
     For each temperature a fresh ordered-start simulation is equilibrated and
-    then sampled. The mean and standard deviation of the per-spin observables
-    over the production run are recorded. The final lattice configuration is
-    kept for later visualisation.
+    then sampled. The full per-sweep time series of |M|/N^2 and E/N^2 is
+    stored so that the correlation time and fluctuation observables can be
+    computed afterwards in the analysis module.
 
     Args:
         size: Lattice side length N
@@ -291,35 +291,36 @@ def temperature_scan(size: int, temperatures: np.ndarray, *,
         show_progress: Whether to show a tqdm bar per simulation
 
     Returns:
-        Dict with keys 'temperatures', 'energy_mean', 'energy_std',
-        'magnetization_mean', 'magnetization_std', 'final_angles'
-        (stacked array of shape (len(temperatures), size, size)).
+        Dict with keys 'temperatures', 'sweeps' (records relative to the
+        start of the production run), 'magnetization_series' and
+        'energy_series' (both shape (n_temperatures, n_records)), and
+        'final_angles' (shape (n_temperatures, size, size)).
     """
-    energy_mean = np.zeros_like(temperatures, dtype=float)
-    energy_std = np.zeros_like(temperatures, dtype=float)
-    mag_mean = np.zeros_like(temperatures, dtype=float)
-    mag_std = np.zeros_like(temperatures, dtype=float)
-    final_angles = np.zeros((len(temperatures), size, size))
+    n_temperatures = len(temperatures)
+    n_records = (n_prod_sweeps + record_interval - 1) // record_interval
+    sweeps = np.zeros(n_records, dtype=np.int64)
+    magnetization_series = np.zeros((n_temperatures, n_records))
+    energy_series = np.zeros((n_temperatures, n_records))
+    final_angles = np.zeros((n_temperatures, size, size))
 
     for i, temperature in enumerate(temperatures):
         model = XYModel(size, temperature, ordered_start=True,
                         seed=(seed + i) if seed is not None else None)
         model.equilibrate(n_equil_sweeps, show_progress=show_progress)
-        _, energies, magnetizations = model.simulate(
+        run_sweeps, energies, magnetizations = model.simulate(
             n_prod_sweeps, record_interval=record_interval,
             show_progress=show_progress)
-        energy_mean[i] = energies.mean()
-        energy_std[i] = energies.std()
-        mag_mean[i] = magnetizations.mean()
-        mag_std[i] = magnetizations.std()
+        if i == 0:
+            sweeps = run_sweeps
+        magnetization_series[i] = magnetizations
+        energy_series[i] = energies
         final_angles[i] = model.angles
 
     return {
         'temperatures': temperatures,
-        'energy_mean': energy_mean,
-        'energy_std': energy_std,
-        'magnetization_mean': mag_mean,
-        'magnetization_std': mag_std,
+        'sweeps': sweeps,
+        'magnetization_series': magnetization_series,
+        'energy_series': energy_series,
         'final_angles': final_angles,
     }
 
@@ -392,7 +393,9 @@ def main() -> None:
       - --two-starts: one ordered-start and one random-start run at the same
         temperature so equilibration curves can be compared.
       - --scan: temperature sweep from --t-min to --t-max in steps of --t-step;
-        saves mean and std of the observables at each temperature.
+        saves the full per-sweep |M|/N^2 and E/N^2 time series and the final
+        lattice at each temperature. The derived quantities (tau, chi_M, C
+        and their errors) are computed from this file by analysis.py.
     """
     parser = argparse.ArgumentParser(description="2D XY model Monte Carlo simulation")
     parser.add_argument("--size", type=int, default=20,
