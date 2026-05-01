@@ -178,207 +178,171 @@
 \subsection{Validation}
 \label{sec:validation}
 
-% TODO Pass 2 -- state the goal: prove the simulation is correct before
-% interpreting any physics. Three independent checks below.
+Before interpreting any of the physics it is essential to confirm that the simulation is sampling the equilibrium distribution at every temperature in the scan. We carry out three independent validation checks: (i) two-starts equilibration, (ii) stationarity of the production trace, and (iii) comparison of the susceptibility-peak location to the high-precision literature value of $T_{\mathrm{BKT}}$. A fourth, smaller check on the finite-size sharpening of the $\chi_M$ peak rounds off the section.
 
 \subsubsection{Equilibration: Two Starts}
 \label{sec:two_starts}
 
-% TODO Pass 2:
-%   - Show ordered- and random-start time series at the same temperature
-%     converge to the same plateau in |m| and e
-%   - Comment on equilibration time and confirm n_equil = 2000 sweeps is
-%     comfortably enough
-%   - Discuss the harder case at T = 2.5 (deeply disordered): both starts
-%     lose memory of the initial condition quickly
+The most direct test that equilibration has been reached is to start two independent simulations from very different initial conditions at the same temperature and check that they relax to the same plateau in $|m|$ and $e$. Figure~\ref{fig:two_starts} shows the ordered start ($\theta_i = 0$ everywhere, corresponding to $T = 0$) and the random start ($\theta_i \sim U(-\pi, \pi]$, corresponding to $T = \infty$) at two representative temperatures.
+
+At $T = 1.0$, near $T_{\mathrm{BKT}}$, the ordered trace begins at $|m| = 1$ and decays towards a fluctuating plateau; the random trace begins at $|m| \approx 0$ and rises towards the same plateau. The two traces meet within $\sim 100$--$200$ sweeps and stay overlapping afterwards. At $T = 2.5$, deep in the disordered phase, the random start already sits near the equilibrium value at $|m| \approx 0$, while the ordered start falls onto the same value within roughly $50$ sweeps--- disordered states are easy to reach because the phase space is dense with them.
+
+In both regimes the equilibration time observed in the traces is at most a few hundred sweeps. Throughout the production runs we therefore use $n_{\mathrm{equil}} = 2000$ sweeps before recording any observables, an order of magnitude longer than the slowest equilibration we observed.
 
 \begin{figure}[H]
     \centering
     \begin{subfigure}{0.49\textwidth}
         \includegraphics[width=\linewidth]{two_starts_N20_T1.00.png}
-        \caption{TODO Pass 2: ordered vs random start at $T = 1.0$ (near $T_{\mathrm{BKT}}$), $N = 20$.}
+        \caption{Ordered vs random start at $T = 1.0$ (near $T_{\mathrm{BKT}}$), $N = 20$. Both initial conditions converge to the same plateau within a few hundred sweeps.}
         \label{fig:two_starts_T1}
     \end{subfigure}
     \hfill
     \begin{subfigure}{0.49\textwidth}
         \includegraphics[width=\linewidth]{two_starts_N50_T2.50.png}
-        \caption{TODO Pass 2: ordered vs random start at $T = 2.5$ (deep disordered phase), $N = 50$.}
+        \caption{Ordered vs random start at $T = 2.5$ (deep disordered phase), $N = 50$. The ordered start collapses onto the random start within a few tens of sweeps.}
         \label{fig:two_starts_T2.5}
     \end{subfigure}
-    \caption{TODO Pass 2: equilibration validation. Two independent starts at the same temperature converge to the same plateau in $|m|$ and $e$, demonstrating that the simulation is sampling the equilibrium distribution.}
+    \caption{Equilibration validation. Two independent starts at the same temperature converge to the same plateau in $|m|$ and $e$, demonstrating that the simulation is sampling the equilibrium distribution.}
     \label{fig:two_starts}
 \end{figure}
 
 \subsubsection{Stationarity: Single-run Trace}
 \label{sec:trace}
 
-% TODO Pass 2:
-%   - Show |m| and e are stationary after equilibration
-%   - Mention visible autocorrelation in the trace and connect it to the
-%     correlation time tau computed in Section sec:correlation
+A second sanity check is that, after equilibration, the time series of $|m|$ and $e$ fluctuate around a constant mean rather than drift. Figure~\ref{fig:trace} shows a single production trace at $N = 50$, $T = 1.0$. Both observables are stationary, with no systematic drift, which is consistent with sampling from the equilibrium distribution.
+
+The fluctuations are visibly correlated in time---excursions away from the mean persist over many sweeps before decaying. This is exactly the behaviour quantified by the integrated correlation time $\tau$ in Section~\ref{sec:correlation}, and is the reason we cannot treat neighbouring samples as independent when estimating error bars.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{time_series_N50_T1.00.png}
-    \caption{TODO Pass 2: production trace of $|m|$ and $e$ at $T = 1.0$, $N = 50$.}
+    \caption{Production trace of $|m|$ and $e$ at $T = 1.0$, $N = 50$. After equilibration both observables fluctuate around a stable mean with visibly correlated excursions on the scale of the integrated correlation time $\tau$.}
     \label{fig:trace}
 \end{figure}
 
 \subsubsection{Critical Temperature vs Literature}
 \label{sec:tc_validation}
 
-% TODO Pass 2:
-%   - Read off the chi_M peak temperature T_chi from the N = 50 scan
-%     (Section sec:magnetisation, Figure fig:scan_main top-right)
-%   - Compare to Hasenbusch's high-precision T_BKT = 0.8935 (cite
-%     hasenbusch2005)
-%   - Discuss the upward finite-size shift: chi_M peak temperature
-%     decreases monotonically toward T_BKT as N grows; small N over-
-%     estimates the transition slightly (textbook BKT finite-size
-%     behaviour)
-%   - Numbers go in the summary table in Section sec:summary_table
+The strongest external check on our simulation is to compare the location of the $\chi_M$ peak with the high-precision Monte Carlo value $T_{\mathrm{BKT}} = 0.8935$ obtained by~\citet{hasenbusch2005}. Reading $T_\chi$ from the $\chi_M(T)$ curve in Figure~\ref{fig:scan_main} gives $T_\chi = 1.10$ for the $N = 50$ scan, an upward shift of $23.1\%$ from the Hasenbusch reference value.
+
+The direction of the shift is consistent with the textbook BKT finite-size behaviour: the susceptibility peak on a finite lattice converges to $T_{\mathrm{BKT}}$ \emph{from above} as $N \to \infty$, so a small upward shift relative to the literature value is expected. Our temperature grid has a step of $\Delta T = 0.2$, which is too coarse to resolve the sub-grid shift between $N = 20$ and $N = 50$ (both peaks land in the $T = 1.10$ bin), but the strong sharpening of the peak with $N$, discussed in Section~\ref{sec:fs_sanity}, is the more direct finite-size signature and is unambiguously visible in our data. A finer-grained scan and a full finite-size scaling extrapolation would be needed to recover $T_{\mathrm{BKT}}$ to high accuracy and is beyond the scope of this report.
 
 \subsubsection{Finite-size Sanity}
 \label{sec:fs_sanity}
 
-% TODO Pass 2:
-%   - Briefly show that scan_N50 has sharper, more localised peaks in
-%     chi_M and C than scan_N20 (already in figures), confirming the
-%     expected sharpening with N
+A second internal check is that increasing the lattice size sharpens the $\chi_M$ and $C$ peaks, as expected of a phase transition rounded by finite-size effects. Comparing the $N = 20$ and $N = 50$ scans, the $\chi_M$ peak grows by a factor of roughly three in absolute height (from $\chi_M^{\max} \approx 6.84$ at $N = 20$ to $\chi_M^{\max} \approx 19.8$ at $N = 50$) while remaining centred on the same temperature bin. This pronounced sharpening is the standard finite-size signature of the BKT transition.
 
 \subsection{Magnetisation and Susceptibility}
 \label{sec:magnetisation}
 
-% TODO Pass 2:
-%   - Plot <|m|>(T) and chi_M(T) (top row of fig:scan_main)
-%   - <|m|> does not drop sharply to zero -- consistent with no LRO at
-%     T > 0 (Mermin-Wagner) and with the finite-size rounding of the
-%     BKT transition
-%   - chi_M shows a clear peak at T_chi ~ T_BKT
-%   - Error bars: correlated SE on <|m|>, blocking error on chi_M
+The top row of Figure~\ref{fig:scan_main} shows $\langle |m| \rangle$ and $\chi_M$ as functions of temperature for the $N = 50$ scan. Two features stand out, both consistent with the Mermin--Wagner theorem and the BKT phase-transition picture.
+
+First, $\langle |m| \rangle$ does not drop sharply to zero anywhere in the scan; it falls smoothly from a near-saturated value of $0.83$ at $T = 0.5$ to a small but non-zero value of $0.03$ at $T = 2.5$. There is no spontaneous symmetry breaking at any finite $T$ in 2D for a continuous symmetry, so a true long-range-ordered phase with $\langle |m|
+\rangle \to $ finite as $N \to \infty$ does not exist. What we see instead
+is a finite-size remnant of the quasi-long-range order below $T_{\mathrm{BKT}}$, smoothly rounded by the finite lattice.
+
+Second, $\chi_M$ shows a clear peak at $T_\chi = 1.10$ with peak value $\chi_M^{\max} = 19.8 \pm 4.2$. This is the standard finite-size signature of the BKT transition. In the thermodynamic limit $\chi_M$ would diverge with an essential singularity at $T_{\mathrm{BKT}}$; on a finite lattice the divergence is rounded into a finite peak, and the peak temperature converges to $T_{\mathrm{BKT}}$ from above as $N$ grows. Error bars on $\langle |m| \rangle$ are the correlated standard error $\sigma = \sqrt{2 \tau / N_{\mathrm{samples}}
+\cdot \mathrm{var}(|m|)}$; error bars on $\chi_M$ come from the blocking
+method with block length $16\,\tau$. Both grow visibly near the peak, where $\tau$ is largest (Section~\ref{sec:correlation}).
 
 \subsection{Energy and Heat Capacity}
 \label{sec:energy}
 
-% TODO Pass 2:
-%   - Plot <e>(T) and C(T) (bottom row of fig:scan_main)
-%   - <e>(T) is smooth and monotonic (no latent heat: BKT is essential)
-%   - C(T) has a finite peak slightly above T_BKT -- well-known feature,
-%     not a divergence
-%   - Error bars: correlated SE on <e>, blocking error on C
+The bottom row of Figure~\ref{fig:scan_main} shows $\langle e \rangle$ and $C$ as functions of temperature. The energy curve is smooth and monotonically increasing across the full range, with no kink, jump, or plateau anywhere near $T_{\mathrm{BKT}}$. This is exactly what is expected for the BKT transition: it is an essential (infinite-order) transition with no latent heat, and the energy passes through it analytically.
+
+The specific heat $C$ shows a broad finite peak near $T_C = 1.10$, with peak value $C^{\max} = 1.34 \pm 0.01$. On the $\Delta T = 0.2$ grid the $C$ peak coincides with the $\chi_M$ peak, but a finer-resolved scan would generally place $T_C$ slightly above $T_\chi$: the specific-heat peak in the 2D XY model is a non-singular feature located somewhat above $T_{\mathrm{BKT}}$, while only the susceptibility peak (or, more rigorously, the helicity-modulus jump) tracks $T_{\mathrm{BKT}}$ in the finite-size scaling limit. The error bars on $\langle e \rangle$ are the correlated standard error and on $C$ the blocking error, again with block length $16\,\tau$.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{scan_N50.png}
-    \caption{TODO Pass 2: temperature dependence of $\langle |m| \rangle$, $\langle e \rangle$, $\chi_M$, and $C$ for the $N = 50$ scan. Error bars: correlated standard error on the means, blocking method on $\chi_M$ and $C$.}
+    \caption{Temperature dependence of $\langle |m| \rangle$, $\langle e \rangle$, $\chi_M$, and $C$ for the $N = 50$ scan. Error bars: correlated standard error on the means, blocking method with block length $16\,\tau$ on $\chi_M$ and $C$.}
     \label{fig:scan_main}
 \end{figure}
 
 \subsection{Correlation Function and Correlation Time}
 \label{sec:correlation}
 
-% TODO Pass 2:
-%   - Two figures address the rubric phrase "correlation function as a
-%     function of temperature":
-%       (a) chi(t)/chi(0) vs lag t at T = 0.5, 0.9, 2.1 -- the
-%           autocorrelation FUNCTION, showing slow decay at T ~ T_BKT
-%           and fast decay in the ordered/disordered phases
-%       (b) tau(T) at all 11 scan temperatures -- the integrated
-%           correlation TIME, peaking near T_BKT (critical slowing down)
-%   - Discuss critical slowing down and how the peak in tau motivates
-%     the 16 tau block length used for chi_M and C error bars
+We address the correlation behaviour of the simulation through two complementary plots. Figure~\ref{fig:autocorr} shows the normalised autocorrelation function $\chi(t) / \chi(0)$ of the magnetisation per spin at three representative temperatures, evaluated using the matched-subset estimator of Section~\ref{sec:error_analysis} and truncated at the lag where each curve first turns negative. Figure~\ref{fig:tau} shows the integrated correlation time $\tau(T)$ obtained by summing each $\chi(t) / \chi(0)$ curve over its truncated support, plotted at all $11$ scan temperatures.
 
-% TODO Pass 2: this figure requires a new --mode autocorrelation in
-% plot_results.py that calls analysis.autocorrelation on the |M|/N^2
-% series for a few representative temperatures. Once added, generate
-% with:
-%   python plot_results.py --mode autocorrelation \
-%       --input data/scan_N50.npz \
-%       --output figures/autocorrelation_curves_N50.png
-% Then uncomment the figure block below.
-%
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.8\textwidth]{autocorrelation_curves_N50.png}
-%     \caption{TODO Pass 2: normalised autocorrelation function $\chi(t)/\chi(0)$ of $|m|(t)$ at three representative temperatures, $N = 50$.}
-%     \label{fig:autocorr}
-% \end{figure}
+The decay of $\chi(t)$ varies dramatically with temperature. In the deeply disordered phase at $T = 2.1$, $\chi(t)$ falls to essentially zero within a handful of sweeps---neighbouring samples are independent and the magnetisation behaves like noise. In the critical region near $T \approx T_{\mathrm{BKT}}$ ($T = 0.9$), $\chi(t)$ decays slowly over several hundred sweeps---the chain is sticky, with magnetisation excursions persisting on long timescales. At $T = 0.5$ the chain also relaxes slowly, though somewhat faster than near the peak: deep in the quasi-ordered phase the slow modes are long-wavelength spin waves rather than vortex-pair fluctuations.
 
-% TODO Pass 2: regenerate at N = 50 from data/scan_N50.npz; placeholder
-% for now is the existing N = 20 figure.
+Integrating $\chi(t)/\chi(0)$ at each temperature yields the $\tau(T)$ curve in Figure~\ref{fig:tau}. The integrated correlation time peaks sharply at $T = 1.10$ with $\tau^{\max} = 494$ sweeps, exactly co-located with the $\chi_M$ peak in Figure~\ref{fig:scan_main}. This is the textbook signature of critical slowing down: the dynamical relaxation time diverges in the thermodynamic limit at $T_{\mathrm{BKT}}$, and on our finite lattice the rounded peak is what survives.
+
+This peak directly drives our error analysis. The standard error of any mean is amplified by a factor $\sqrt{2\tau}$ over the naive $1 / \sqrt{N_{\mathrm{samples}}}$ estimate, and the blocking method we use for $\chi_M$ and $C$ errors uses block length $16\,\tau$ to ensure that adjacent blocks are statistically independent. Where $\tau$ peaks, both error contributions grow---which is why the error bars on $\chi_M$ and $C$ near the peak are visibly larger than at other temperatures in Figure~\ref{fig:scan_main}.
+
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.7\textwidth]{tau_N20.png}
-    \caption{TODO Pass 2: integrated correlation time $\tau(T)$ at $N = 50$ across the 11 scan temperatures (placeholder shows $N = 20$ until regeneration).}
+    \includegraphics[width=0.8\textwidth]{autocorrelation_curves_N50.png}
+    \caption{Normalised autocorrelation function $\chi(t)/\chi(0)$ of $|m|(t)$ at three representative temperatures, $N = 50$. Each curve is truncated at the first lag where $\chi(t)$ turns negative, matching the cutoff used to compute the integrated $\tau$.}
+    \label{fig:autocorr}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{tau_N50.png}
+    \caption{Integrated correlation time $\tau(T)$ at $N = 50$ across the 11 scan temperatures. The peak near $T \approx T_{\mathrm{BKT}}$ is the textbook signature of critical slowing down.}
     \label{fig:tau}
 \end{figure}
 
 \subsection{Vortices at Low Temperature}
 \label{sec:vortices}
 
-% TODO Pass 2:
-%   - Visual: configuration_vortices_N30_T1.00.png shows isolated bound
-%     vortex/anti-vortex pairs at T just above T_BKT
-%   - Quantitative: vortex count vs T flat-low at T < T_BKT, rising
-%     rapidly through and above T_BKT (unbinding picture)
-%   - Note that n_+ = n_- exactly on the periodic lattice (detector sanity
-%     check)
-%   - Optional contrast: vectors_N50_T2.00.png in the deep disordered
-%     phase -- vortices everywhere, no orientational order
+Figure~\ref{fig:vortex_config} shows a representative configuration just above $T_{\mathrm{BKT}}$ ($T = 1.0$, $N = 30$) with each plaquette checked for topological charge by the algorithm of Section~\ref{sec:vortex_detection}. Vortices ($+1$) and anti-vortices ($-1$) appear in close pairs sitting on top of an otherwise nearly uniform spin field---the bound-pair regime that is the hallmark of the low-$T$ phase of the 2D XY model.
+
+Figure~\ref{fig:vortex_count} shows the count of $+1$ vortices and $-1$ anti-vortices in the final configuration of each temperature point of the $N = 50$ scan. Two features are evident. First, the two counts coincide exactly at every temperature. This is not a coincidence but a topological necessity: the total winding number summed over a closed surface (the torus formed by our periodic lattice) is identically zero, so any vortex must be matched by an anti-vortex elsewhere on the lattice. The fact that our detector reproduces this exactly is a useful sanity check on the plaquette-walking implementation. Second, the count rises sharply from near zero in the low-temperature phase to $\mathcal{O}(10)$ vortices per configuration once $T$ exceeds $T_{\mathrm{BKT}}$, in line with the BKT unbinding picture: bound pairs proliferate into a dilute gas of free vortices.
+
+\paragraph{Is the vortex number conserved?} The lecture~8 notes
+explicitly ask whether the vortex number is conserved during the simulation. The answer requires care. The \emph{total topological charge} $n_+ - n_-$ is conserved exactly: as just argued, it is identically zero on the periodic lattice and our detector confirms this. The \emph{count} $n_+ + n_-$, however, is \emph{not} conserved during the Markov chain. Vortex--antivortex pairs are continuously created and annihilated as the single-spin Metropolis updates sweep through the lattice, and a single accepted move that flips the sign of one cosine bond can simultaneously nucleate or destroy a pair on the adjacent plaquette. What is well-defined is the equilibrium expectation value $\langle n_+ + n_- \rangle (T)$, which is set by the Boltzmann weight of vortex configurations and is exactly the quantity we plot in Figure~\ref{fig:vortex_count}.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.6\textwidth]{configuration_vortices_N30_T1.00.png}
-    \caption{TODO Pass 2: spin configuration at $T = 1.0$, $N = 30$, with $+1$ vortices (red) and $-1$ anti-vortices (blue) circled. Bound pairs are visible.}
+    \caption{Spin configuration at $T = 1.0$, $N = 30$, with $+1$ vortices (red) and $-1$ anti-vortices (blue) circled. Bound vortex--antivortex pairs sit on top of an otherwise smooth spin field, the bound-pair regime expected just above $T_{\mathrm{BKT}}$.}
     \label{fig:vortex_config}
 \end{figure}
 
-% TODO Pass 2: regenerate at N = 50; placeholder shows N = 20.
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.7\textwidth]{vortex_count_N20.png}
-    \caption{TODO Pass 2: number of $+1$ vortices and $-1$ anti-vortices in the final configuration as a function of $T$, $N = 50$ (placeholder shows $N = 20$). On a periodic lattice the two counts coincide.}
+    \includegraphics[width=0.7\textwidth]{vortex_count_N50.png}
+    \caption{Number of $+1$ vortices and $-1$ anti-vortices in the final configuration as a function of $T$, $N = 50$. The two counts coincide exactly: on a periodic lattice the total topological charge is identically zero, so any vortex is matched by an anti-vortex elsewhere on the lattice.}
     \label{fig:vortex_count}
 \end{figure}
 
 \subsection{Configuration Grid}
 \label{sec:config_grid}
 
-% TODO Pass 2:
-%   - One paragraph walking through scan_configurations_N50.png:
-%       low T: nearly aligned, few vortices
-%       T ~ T_BKT: large smooth domains separated by isolated vortex
-%                  pairs
-%       high T: fully disordered, dense vortex lattice
-%   - This is the visual summary of all the quantitative results
+Figure~\ref{fig:config_grid} is the visual summary of the entire scan: the final spin configuration at each of the $11$ temperatures, with hue encoding $\theta \in [-\pi, \pi)$. Three regimes are immediately apparent to the eye. At low $T$ ($T \le 0.7$), most of the lattice is a nearly uniform colour, with only a handful of slow gradients; the system has essentially picked a direction and aligned with it. At intermediate $T$ ($0.9 \lesssim T \lesssim 1.3$), the lattice breaks up into large ordered domains of similar colour separated by sharper hue transitions; isolated vortex--antivortex pairs appear at the domain boundaries, in agreement with the bound-pair picture below $T_{\mathrm{BKT}}$. At high $T$ ($T \gtrsim 1.7$), all spatial structure is gone: the colours are spread approximately uniformly across $[-\pi, \pi)$ on the scale of a few sites, and vortices and anti-vortices are scattered densely across the lattice. The smooth visual transition from one regime to the other, without any sharp boundary, is consistent with the BKT picture: there is no first-order transition or sudden symmetry breaking, only a topological crossover whose signature lives in the susceptibility and the vortex density.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{scan_configurations_N50.png}
-    \caption{TODO Pass 2: final spin configurations across the temperature scan, $N = 50$, with hue encoding the spin angle.}
+    \caption{Final spin configurations across the $N = 50$ temperature scan, with hue encoding the spin angle in $[-\pi, \pi)$. Reading left to right and top to bottom the lattice progresses from nearly aligned at low $T$, through bound vortex pairs in the critical region, to a fully disordered vortex gas at high $T$.}
     \label{fig:config_grid}
 \end{figure}
 
 \subsection{Numerical Summary}
 \label{sec:summary_table}
 
-% TODO Pass 2: fill in the table with numbers read off the N = 50 scan
-% (analysis.scan_statistics output). Numbers below are placeholders.
+Table~\ref{tab:summary} collects the key numerical results from the $N = 50$ scan. The susceptibility peak temperature is the closest single-number proxy we have for $T_{\mathrm{BKT}}$ on a finite lattice, and its relative deviation from the literature value $T_{\mathrm{BKT}} = 0.8935$ \citep{hasenbusch2005} is the headline validation number for the simulation.
 
 \begin{table}[H]
     \centering
-    \caption{TODO Pass 2: peak quantities from the $N = 50$ temperature scan, with the literature comparison.}
+    \caption{Peak quantities from the $N = 50$ temperature scan, with
+             the literature comparison. Errors on the peak $\chi_M$ and
+             $C$ are blocking-method standard errors at the peak temperature;
+             the temperature resolution is set by the $0.2$ scan step.}
     \label{tab:summary}
     \begin{tabular}{lcc}
         \toprule
         Quantity                              & Value                & Source \\
         \midrule
-        $T$ at $\chi_M$ peak                  & TBD $\pm$ TBD        & this work, $N = 50$ \\
-        $\chi_M$ at peak                      & TBD $\pm$ TBD        & this work, $N = 50$ \\
-        $T$ at $C$ peak                       & TBD $\pm$ TBD        & this work, $N = 50$ \\
-        $C$ at peak                           & TBD $\pm$ TBD        & this work, $N = 50$ \\
-        Literature $T_{\mathrm{BKT}}$         & $0.8935$             & \citet{hasenbusch2005} \\
-        Relative deviation of $T_{\chi}$      & TBD\,\%              & this work vs literature \\
+        $T$ at $\chi_M$ peak                  & $1.10 \pm 0.1$              & this work, $N = 50$ \\
+        $\chi_M$ at peak                      & $19.8 \pm 4.2$              & this work, $N = 50$ \\
+        $T$ at $C$ peak                       & $1.10 \pm 0.1$              & this work, $N = 50$ \\
+        $C$ at peak                           & $1.34 \pm 0.01$             & this work, $N = 50$ \\
+        $\tau$ at peak                        & $494$ sweeps                & this work, $N = 50$ \\
+        Literature $T_{\mathrm{BKT}}$         & $0.8935$                    & \citet{hasenbusch2005} \\
+        Relative deviation of $T_{\chi}$      & $23.1\,\%$                  & this work vs literature \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -392,51 +356,57 @@
 \subsection{Motivation and Hamiltonian}
 \label{sec:ext_motivation}
 
-% TODO Pass 2:
-%   - Add diagonal NNN bonds with coupling J_2 along (+/-1, +/-1) on top of
-%     the J_1 nearest-neighbour bonds
-%   - Full Hamiltonian:
-%       H = -J_1 sum_<i,j> cos(theta_i - theta_j)
-%           -J_2 sum_<<i,j>> cos(theta_i - theta_j)
-%   - Run with J_2 / J_1 = 0.5 (--j2-ratio 0.5)
-%   - Expected effects: more ferromagnetic coupling => T_BKT shifts up,
-%     vortex cores cost more energy, configurations are smoother at fixed T,
-%     <e> is more negative at every T
+The standard XY Hamiltonian couples each spin to its four nearest neighbours only. Lecture~8 suggests, as one of three possible extensions, to extend the interaction to ``the second layer'' of neighbours with a reduced coupling. We interpret the second layer as the four next-nearest neighbours at Euclidean distance $\sqrt{2}$ (the diagonals of a $2 \times 2$ plaquette), which is the standard convention for second neighbours on a square lattice. The full Hamiltonian then reads
+\begin{equation}
+\mathcal{H} = -J_1 \sum_{\langle i,j \rangle}
+                  \cos(\theta_i - \theta_j)
+              -J_2 \sum_{\langle\langle i,j \rangle\rangle}
+                  \cos(\theta_i - \theta_j),
+\label{eq:hamiltonian_j2}
+\end{equation}
+where $\langle i,j \rangle$ runs over nearest-neighbour pairs and $\langle\langle i,j \rangle\rangle$ over diagonal next-nearest-neighbour pairs. We fix $J_1 = 1$ and run with $J_2 / J_1 = 0.5$, matching the ``half as large for neighbours in the second layer'' suggestion of the project script.
+
+Each spin now participates in eight bonds rather than four. Three qualitative consequences follow on physical grounds and are tested in Section~\ref{sec:ext_results}: (i)~the system is stiffer, so the BKT transition temperature shifts upwards; (ii)~configurations are smoother at fixed $T$ because more bonds resist local twists; and (iii)~vortex cores cost more energy to create, so the equilibrium vortex density at fixed $T$ drops sharply.
 
 \subsection{Method Changes}
 \label{sec:ext_method}
 
-% TODO Pass 2:
-%   - Single new local term per site (xy_simulation.py:local_energy and
-%     xy_simulation.py:total_energy already gated by j2_ratio != 0)
-%   - At j2_ratio = 0 the trajectory is bit-identical to the J_1-only
-%     simulation for the same seed -- a regression guarantee noted in
-%     the README
+The extension is implemented as a single optional term in the local energy calculation: when the parameter \texttt{j2\_ratio} is non-zero, the
+\texttt{local\_energy} and \texttt{total\_energy} functions add the four
+diagonal cosine contributions weighted by $J_2/J_1$. Every other piece of the simulation pipeline---the Metropolis acceptance rule, the equilibration protocol, the autocorrelation analysis, the blocking estimator, the vortex detector---is reused unchanged. As a regression guarantee, with
+\texttt{j2\_ratio = 0.0} the simulation produces a bit-identical trajectory
+to the $J_1$-only model with the same seed, so the extension cannot affect the main scan results.
+
+The extension scan is run at $N = 20$ rather than $N = 50$. The qualitative features we wish to demonstrate---a shift in the location of the susceptibility peak and a reduction in vortex density---are visible at $N = 20$ at a fraction of the computational cost.
 
 \subsection{Results}
 \label{sec:ext_results}
 
-% TODO Pass 2:
-%   - Headline figure (compare_scans_N20.png): 2x3 panel overlaying both
-%     scans -- <|m|>(T), <e>(T), tau(T), chi_M(T), C(T), vortex count
-%   - Quote the chi_M peak shift: T = 1.1 (J_2 = 0) -> T = 1.9 (J_2 = 0.5)
-%     at N = 20 (verify against the actual figure when writing prose)
-%   - Energy is more negative everywhere
-%   - Vortices are suppressed at fixed T
-%   - One paragraph relating the J_2 effect to the spin-stiffness picture
-%     of BKT: more bonds per site => higher stiffness => higher T_BKT
+Figure~\ref{fig:compare_scans} overlays the six summary observables for the $J_2 = 0$ and $J_2 = 0.5\,J_1$ scans at $N = 20$. The three predictions of Section~\ref{sec:ext_motivation} are clearly visible.
+
+\paragraph{Transition shifts upwards.} The susceptibility peak moves from
+$T_\chi = 1.10$ at $J_2 = 0$ to $T_\chi = 1.90$ at $J_2 = 0.5\,J_1$, with peak values $\chi_M^{\max} = 6.84 \pm 1.08$ and $\chi_M^{\max} = 3.98 \pm 0.34$ respectively. The specific-heat peak shifts in the same direction, from $T_C = 1.10$ to $T_C = 1.90$. The mean magnetisation $\langle |m| \rangle$ likewise stays high to a much higher temperature: at $T = 1.5$, $\langle |m| \rangle$ has dropped to $0.14$ in the $J_2 = 0$ run but is still $0.70$ in the $J_2 = 0.5\,J_1$ run.
+
+\paragraph{Energy is uniformly more negative.} At every temperature in the
+scan, $\langle e \rangle$ is roughly one unit lower for $J_2 = 0.5\,J_1$ than for $J_2 = 0$ (e.g.\ $-2.74$ vs $-1.73$ at $T = 0.5$, $-1.24$ vs $-0.52$ at $T = 2.1$), reflecting the four extra cosine bonds per site, each weighted by $0.5$ and saturating at $-1$ in the aligned limit, which contributes $-2$ per spin in addition to the $-2$ already provided by the nearest-neighbour bonds.
+
+\paragraph{Vortices are suppressed.} Counting vortices in the final
+configuration at each temperature: in the $J_2 = 0$ run vortices first appear at $T = 0.9$ and rise rapidly, reaching $21$ at $T = 1.3$ and saturating near $40$ at high $T$. In the $J_2 = 0.5\,J_1$ run vortices remain absent up to $T = 1.3$ inclusive, and the count remains low until $T \gtrsim 1.9$. Figure~\ref{fig:config_grid_j2} shows the corresponding configuration grid: matched-$T$ snapshots are visibly smoother, with larger ordered domains and isolated vortex pairs only appearing at the upper end of the scan.
+
+\paragraph{Connection to spin stiffness.} The BKT transition temperature
+in the standard XY model is set by the spin stiffness, the rigidity of the spin field against twists. Adding $J_2 > 0$ doubles the number of bonds per site (and increases the bond-weighted bond count by a factor of $1 + 4 \cdot 0.5 / 4 = 1.5$), so the spin stiffness rises and the unbinding temperature must rise with it. The single vortex--antivortex pair energy, which sets the critical temperature in the Kosterlitz renormalisation-group picture, scales linearly with the stiffness, so a $50\%$ increase in stiffness predicts a $\sim 50\%$ rise in $T_{\mathrm{BKT}}$. Our observed shift from $T_\chi \approx 1.10$ to $T_\chi \approx 1.90$ (both at $N = 20$, both shifted upwards from the thermodynamic $T_{\mathrm{BKT}}$ by finite-size rounding) is consistent with this estimate to within a factor of order one, which is the expected accuracy at this lattice size.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{compare_scans_N20.png}
-    \caption{TODO Pass 2: $J_1$-only vs $J_1 + J_2$ comparison at $N = 20$ for $\langle |m| \rangle$, $\langle e \rangle$, $\tau$, $\chi_M$, $C$, and the vortex count.}
+    \caption{Headline $J_1$-only vs $J_1 + J_2$ comparison at $N = 20$ for $\langle |m| \rangle$, $\langle e \rangle$, $\tau$, $\chi_M$, $C$, and the vortex count of the final configuration. Adding the diagonal coupling shifts the susceptibility and specific-heat peaks upwards, makes the energy more negative everywhere, and suppresses vortices at fixed $T$.}
     \label{fig:compare_scans}
 \end{figure}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{scan_configurations_N20_j2_0.50.png}
-    \caption{TODO Pass 2: final spin configurations across the temperature scan with $J_2 / J_1 = 0.5$, $N = 20$. Smoother than the $J_2 = 0$ case at matched $T$.}
+    \caption{Final spin configurations across the $J_2 / J_1 = 0.5$ scan at $N = 20$. Compared with the $J_2 = 0$ configurations at the same temperature (Figure~\ref{fig:config_grid}), the lattice is visibly smoother, with larger ordered domains and far fewer vortex pairs at every $T$.}
     \label{fig:config_grid_j2}
 \end{figure}
 
