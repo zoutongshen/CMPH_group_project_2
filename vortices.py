@@ -30,10 +30,11 @@ def plaquette_charges(angles: np.ndarray) -> np.ndarray:
     """
     Topological charge of every plaquette of the lattice.
 
-    Walks each 2x2 plaquette a -> b -> c -> d -> a (top-left, top-right,
-    bottom-right, bottom-left under periodic boundaries) and sums the four
-    angle differences wrapped into (-pi, pi]. The result divided by 2 pi
-    rounds to the integer winding number.
+    Walks each 2x2 plaquette top_left -> top_right -> bottom_right ->
+    bottom_left -> top_left (under periodic boundary conditions) and sums
+    the four nearest-neighbour angle differences, each wrapped into
+    (-pi, pi]. The closed-loop sum divided by 2 pi rounds to the integer
+    winding number of the plaquette.
 
     Args:
         angles: Array of shape (size, size) with spin angles
@@ -43,16 +44,21 @@ def plaquette_charges(angles: np.ndarray) -> np.ndarray:
         topological charge (+1 / -1 / 0) of the plaquette with top-left
         corner at (r, c).
     """
-    corner_a = angles
-    corner_b = np.roll(angles, -1, axis=1)
-    corner_c = np.roll(np.roll(angles, -1, axis=0), -1, axis=1)
-    corner_d = np.roll(angles, -1, axis=0)
+    # Build the four corners of every plaquette as full lattice arrays.
+    # np.roll(..., -1, axis=1) moves each column one step to the left,
+    # i.e. corner.[r, c] = angles[r, (c+1) % size] under PBC.
+    top_left = angles
+    top_right = np.roll(angles, -1, axis=1)
+    bottom_right = np.roll(np.roll(angles, -1, axis=0), -1, axis=1)
+    bottom_left = np.roll(angles, -1, axis=0)
 
+    # Each leg is the nearest-neighbour angle difference along one edge of
+    # the plaquette, wrapped into (-pi, pi] to remove the 2-pi gauge freedom.
     winding = (
-        _wrap_to_pi(corner_b - corner_a)
-        + _wrap_to_pi(corner_c - corner_b)
-        + _wrap_to_pi(corner_d - corner_c)
-        + _wrap_to_pi(corner_a - corner_d)
+        _wrap_to_pi(top_right - top_left)         # top edge: TL -> TR
+        + _wrap_to_pi(bottom_right - top_right)   # right edge: TR -> BR
+        + _wrap_to_pi(bottom_left - bottom_right) # bottom edge: BR -> BL
+        + _wrap_to_pi(top_left - bottom_left)     # left edge: BL -> TL
     )
     return np.round(winding / (2.0 * np.pi)).astype(int)
 

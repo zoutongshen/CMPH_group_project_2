@@ -86,10 +86,14 @@ def total_energy(angles: np.ndarray, *, j2_ratio: float = 0.0) -> float:
     for row in range(size):
         for col in range(size):
             theta = angles[row, col]
+            # Visit only the right and down NN bonds: each NN bond is then
+            # counted exactly once over the lattice sweep.
             right = angles[row, (col + 1) % size]
             down = angles[(row + 1) % size, col]
             energy -= np.cos(theta - right) + np.cos(theta - down)
             if j2_ratio != 0.0:
+                # Same trick on diagonals: down-right and down-left reach
+                # every NNN bond from exactly one endpoint per pair.
                 down_right = angles[(row + 1) % size, (col + 1) % size]
                 down_left = angles[(row + 1) % size, (col - 1) % size]
                 energy -= j2_ratio * (np.cos(theta - down_right)
@@ -140,6 +144,9 @@ def metropolis_sweep(angles: np.ndarray, rng: np.random.Generator,
     """
     size = angles.shape[0]
     n_sites = size * size
+    # Pre-draw all randomness for the whole sweep in three vectorised numpy
+    # calls. Drawing one scalar per trial move would call into the generator
+    # n_sites times and dominate the inner loop.
     proposals = delta * rng.uniform(-1.0, 1.0, size=n_sites)
     sites = rng.integers(0, size, size=(n_sites, 2))
     accept_draws = rng.random(size=n_sites)
@@ -155,17 +162,23 @@ def metropolis_sweep(angles: np.ndarray, rng: np.random.Generator,
         theta_old = angles[row, col]
         theta_new = theta_old + proposals[step]
 
+        # Compute Delta E from local_energy on the affected site only.
+        # This is what makes a sweep O(N^2) instead of O(N^4): only the
+        # bonds touching (row, col) change when one spin moves.
         e_old = local_energy(angles, row, col, j2_ratio=j2_ratio)
         angles[row, col] = theta_new
         e_new = local_energy(angles, row, col, j2_ratio=j2_ratio)
         delta_e = e_new - e_old
 
+        # Metropolis: always accept a downhill move (and skip the exp);
+        # accept an uphill move with probability exp(-beta * Delta E).
         if delta_e <= 0.0 or accept_draws[step] < np.exp(-beta * delta_e):
             energy_change += delta_e
             mag_x_change += np.cos(theta_new) - np.cos(theta_old)
             mag_y_change += np.sin(theta_new) - np.sin(theta_old)
             n_accepted += 1
         else:
+            # Reject: restore the previous angle.
             angles[row, col] = theta_old
 
     return energy_change, mag_x_change, mag_y_change, n_accepted

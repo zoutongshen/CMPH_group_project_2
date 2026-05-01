@@ -149,35 +149,27 @@ def plot_scan_observables(filename: str, figure_path: str) -> None:
     """
     stats, temperatures, _ = _scan_statistics_from_file(filename)
 
+    # One spec per panel: which key to read, axis label, marker, colour.
+    # Reading from a list keeps the four very-similar plot blocks DRY.
+    panel_specs = [
+        ((0, 0), 'magnetization_mean', 'magnetization_error',
+         r'$\langle |m| \rangle$', 'o-', 'tab:blue'),
+        ((0, 1), 'energy_mean', 'energy_error',
+         r'$\langle e \rangle$', 's-', 'tab:red'),
+        ((1, 0), 'susceptibility', 'susceptibility_error',
+         r'$\chi_M$', 'D-', 'tab:green'),
+        ((1, 1), 'specific_heat', 'specific_heat_error',
+         'C', '^-', 'tab:purple'),
+    ]
+
     fig, axes = plt.subplots(2, 2, figsize=(11, 9))
-
-    axes[0, 0].errorbar(temperatures, stats['magnetization_mean'],
-                        yerr=stats['magnetization_error'],
-                        fmt='o-', color='tab:blue', capsize=3)
-    axes[0, 0].set_xlabel('Temperature T')
-    axes[0, 0].set_ylabel(r'$\langle |m| \rangle$')
-    axes[0, 0].grid(True, alpha=0.3)
-
-    axes[0, 1].errorbar(temperatures, stats['energy_mean'],
-                        yerr=stats['energy_error'],
-                        fmt='s-', color='tab:red', capsize=3)
-    axes[0, 1].set_xlabel('Temperature T')
-    axes[0, 1].set_ylabel(r'$\langle e \rangle$')
-    axes[0, 1].grid(True, alpha=0.3)
-
-    axes[1, 0].errorbar(temperatures, stats['susceptibility'],
-                        yerr=stats['susceptibility_error'],
-                        fmt='D-', color='tab:green', capsize=3)
-    axes[1, 0].set_xlabel('Temperature T')
-    axes[1, 0].set_ylabel(r'$\chi_M$')
-    axes[1, 0].grid(True, alpha=0.3)
-
-    axes[1, 1].errorbar(temperatures, stats['specific_heat'],
-                        yerr=stats['specific_heat_error'],
-                        fmt='^-', color='tab:purple', capsize=3)
-    axes[1, 1].set_xlabel('Temperature T')
-    axes[1, 1].set_ylabel('C')
-    axes[1, 1].grid(True, alpha=0.3)
+    for (row, col), mean_key, error_key, ylabel, fmt, color in panel_specs:
+        ax = axes[row, col]
+        ax.errorbar(temperatures, stats[mean_key], yerr=stats[error_key],
+                    fmt=fmt, color=color, capsize=3)
+        ax.set_xlabel('Temperature T')
+        ax.set_ylabel(ylabel)
+        ax.grid(True, alpha=0.3)
 
     suffix = _j2_label(stats['j2_ratio'])
     if suffix:
@@ -211,6 +203,54 @@ def plot_correlation_time(filename: str, figure_path: str,
         ax.set_title(suffix.strip())
     ax.grid(True, alpha=0.3)
     ax.legend()
+    save_figure(fig, figure_path)
+
+
+def plot_autocorrelation_curves(filename: str, figure_path: str,
+                                *, target_temperatures: tuple = (0.5, 0.9, 2.1)
+                                ) -> None:
+    """
+    Plot the normalised autocorrelation function of |M|/N^2 at several T.
+
+    For each target temperature the closest temperature in the scan is used.
+    Each curve is truncated at the first lag where chi(t) turns negative,
+    matching the cutoff used by analysis.correlation_time and avoiding the
+    noisy large-lag tail.
+
+    Args:
+        filename: Path to an .npz file saved by xy_simulation.py --scan
+        figure_path: Output PNG path
+        target_temperatures: Temperatures to display; the nearest available
+                             scan temperature is selected for each.
+    """
+    data = np.load(filename)
+    temperatures = data['temperatures']
+    magnetization_series = data['magnetization_series']
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for target in target_temperatures:
+        index = int(np.argmin(np.abs(temperatures - target)))
+        actual_temperature = float(temperatures[index])
+        series = magnetization_series[index]
+
+        chi = analysis.autocorrelation(series)
+        if chi[0] <= 0.0:
+            continue
+        normalised = chi / chi[0]
+        negative = np.where(normalised < 0.0)[0]
+        cutoff = int(negative[0]) if negative.size else len(normalised)
+        lags = np.arange(cutoff)
+        ax.plot(lags, normalised[:cutoff],
+                label=f'T = {actual_temperature:.2f}')
+
+    ax.axhline(0.0, color='grey', linewidth=0.8, linestyle=':')
+    ax.set_xlabel('Lag t (sweeps)')
+    ax.set_ylabel(r'$\chi(t) / \chi(0)$')
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    suffix = _j2_label(_j2_ratio_of(data))
+    if suffix:
+        ax.set_title(suffix.strip())
     save_figure(fig, figure_path)
 
 
@@ -424,9 +464,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Plot XY model MC results")
     parser.add_argument("--mode",
                         choices=["time-series", "two-starts", "scan",
-                                 "tau", "vortex-count", "compare-scans",
-                                 "scan-configurations", "configuration",
-                                 "vectors"],
+                                 "tau", "autocorrelation", "vortex-count",
+                                 "compare-scans", "scan-configurations",
+                                 "configuration", "vectors"],
                         required=True,
                         help="Which type of plot to produce")
     parser.add_argument("--input", type=str,
@@ -442,6 +482,7 @@ def main() -> None:
                              "and vectors plots")
     args = parser.parse_args()
 
+    # compare-scans is the only multi-input mode; handle it separately.
     if args.mode == "compare-scans":
         if not args.inputs:
             parser.error("--inputs is required for --mode compare-scans")
@@ -451,24 +492,27 @@ def main() -> None:
     if not args.input:
         parser.error("--input is required for this mode")
 
-    if args.mode == "time-series":
-        plot_time_series(args.input, args.output)
-    elif args.mode == "two-starts":
-        plot_two_starts(args.input, args.output)
-    elif args.mode == "scan":
-        plot_scan_observables(args.input, args.output)
-    elif args.mode == "tau":
-        plot_correlation_time(args.input, args.output)
-    elif args.mode == "vortex-count":
-        plot_vortex_counts(args.input, args.output)
-    elif args.mode == "scan-configurations":
-        plot_scan_configurations(args.input, args.output)
-    elif args.mode == "configuration":
-        angles = np.load(args.input)['final_angles']
+    # Plain (input, output) plotters dispatched from a name -> function map.
+    single_input_plotters = {
+        "time-series": plot_time_series,
+        "two-starts": plot_two_starts,
+        "scan": plot_scan_observables,
+        "tau": plot_correlation_time,
+        "autocorrelation": plot_autocorrelation_curves,
+        "vortex-count": plot_vortex_counts,
+        "scan-configurations": plot_scan_configurations,
+    }
+    if args.mode in single_input_plotters:
+        single_input_plotters[args.mode](args.input, args.output)
+        return
+
+    # configuration / vectors take an extracted angles array plus optional
+    # title and vortex overlay flag; handle them after the simple dispatch.
+    angles = np.load(args.input)['final_angles']
+    if args.mode == "configuration":
         plot_spin_configuration(angles, args.output, title=args.title,
                                 overlay_vortices=args.overlay_vortices)
     elif args.mode == "vectors":
-        angles = np.load(args.input)['final_angles']
         plot_spin_vectors(angles, args.output, title=args.title,
                           overlay_vortices=args.overlay_vortices)
 
